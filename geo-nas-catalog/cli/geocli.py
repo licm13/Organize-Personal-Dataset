@@ -1,8 +1,9 @@
 """Typer-based command line interface for geo-nas-catalog."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
-from typing import List
+from typing import Iterable, List, Optional
 
 import typer
 
@@ -14,6 +15,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from catalog import CatalogEntry, CatalogScanner, ScanConfig  # type: ignore  # noqa: E402
+from catalog.schema import CatalogSummary  # type: ignore  # noqa: E402
 from catalog.metadata import CatalogSummary  # type: ignore  # noqa: E402
 from ingest import load_dataset  # type: ignore  # noqa: E402
 from plot import apply_nature_style, export_figure  # type: ignore  # noqa: E402
