@@ -3,25 +3,20 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, Iterable
+from typing import Iterable, Optional
 
-if False:  # pragma: no cover - used for typing only
-    from ..scanner import ScanContext
+from ..metadata import CatalogEntry
 
 
 class FileHandler(ABC):
     """Abstract base class for dataset handlers."""
 
-    extensions: Iterable[str] = ()
+    formats: Iterable[str]
 
+    @abstractmethod
     def sniff(self, path: Path) -> bool:
         """Return ``True`` if the handler can process the given path."""
 
-        if not self.extensions:
-            return True
-        suffix = path.suffix.lower()
-        return suffix in {ext.lower() for ext in self.extensions}
-
     @abstractmethod
-    def extract(self, path: Path, rel_path: Path, *, context: "ScanContext") -> Dict[str, object]:
-        """Return metadata updates for ``path`` or an empty mapping."""
+    def extract(self, path: Path, rel_path: Path) -> Optional[CatalogEntry]:
+        """Extract a :class:`CatalogEntry` from ``path`` if possible."""

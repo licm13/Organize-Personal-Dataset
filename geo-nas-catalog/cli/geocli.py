@@ -16,6 +16,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from catalog import CatalogEntry, CatalogScanner, ScanConfig  # type: ignore  # noqa: E402
 from catalog.schema import CatalogSummary  # type: ignore  # noqa: E402
+from catalog.metadata import CatalogSummary  # type: ignore  # noqa: E402
 from ingest import load_dataset  # type: ignore  # noqa: E402
 from plot import apply_nature_style, export_figure  # type: ignore  # noqa: E402
 from utils.logging import configure_logging  # type: ignore  # noqa: E402
@@ -34,54 +35,28 @@ def main(verbose: bool = typer.Option(False, "--verbose", help="Enable debug log
     configure_logging("DEBUG" if verbose else "INFO")
 
 
-def _parse_extensions(raw: str) -> Optional[List[str]]:
-    values = [item.strip() for item in raw.split(",") if item.strip()]
-    return values or None
-
-
-def _read_catalog(path: Path) -> Iterable[CatalogEntry]:
-    with path.open("r", encoding="utf-8") as handle:
-        for line in handle:
-            if not line.strip():
-                continue
-            record = json.loads(line)
-            yield CatalogEntry.model_validate(record)
-
-
 @app.command()
 def scan(
     root: Path = typer.Argument(..., help="Root directory to scan."),
-    out: Path = typer.Option(Path("./outputs/catalog"), "--out", help="Output directory for catalog artifacts."),
-    hash_: bool = typer.Option(False, "--hash/--no-hash", help="Compute SHA1 checksums during scanning."),
-    readme: bool = typer.Option(False, "--readme/--no-readme", help="Attempt to detect and summarise README files."),
-    limit_ext: str = typer.Option("", "--limit-ext", help="Comma separated list of extensions to include (e.g. .nc,.csv)."),
-    resume: bool = typer.Option(False, "--resume/--fresh", help="Resume from previous scan state."),
-    workers: int = typer.Option(1, "--workers", min=1, help="Number of worker threads for hashing."),
+    output: Path = typer.Option(Path("catalog/catalog.jsonl"), help="Path to JSONL output."),
 ) -> None:
     root = _resolve_root(root)
-    output_dir = out
-    extensions = _parse_extensions(limit_ext)
-    config = ScanConfig(
-        root=root,
-        output_dir=output_dir,
-        limit_extensions=extensions,
-        compute_hash=hash_,
-        include_readmes=readme,
-        resume=resume,
-        workers=workers,
-    )
     scanner = CatalogScanner()
-    count = 0
-    for _ in scanner.scan(config):
-        count += 1
-    typer.echo(f"Processed {count} entries into {output_dir}")
+    config = ScanConfig(root=root)
+    entries: List[CatalogEntry] = list(scanner.scan(config))
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open("w", encoding="utf-8") as handle:
+        for entry in entries:
+            handle.write(entry.json())
+            handle.write("\n")
+    typer.echo(f"Wrote {len(entries)} entries to {output}")
 
 
 @app.command()
 def summarize(catalog_path: Path = typer.Argument(..., help="Catalog JSONL path.")) -> None:
     if not catalog_path.exists():
         raise typer.BadParameter(f"Catalog {catalog_path} not found")
-    entries = list(_read_catalog(catalog_path))
+    entries = [CatalogEntry.parse_raw(line) for line in catalog_path.read_text().splitlines()]
     summary = CatalogSummary.from_entries(entries)
     typer.echo(summary.json(indent=2))
 
@@ -93,7 +68,7 @@ def export(
 ) -> None:
     import pandas as pd
 
-    entries = [entry.as_record() for entry in _read_catalog(catalog_path)]
+    entries = [CatalogEntry.parse_raw(line).dict() for line in catalog_path.read_text().splitlines()]
     df = pd.DataFrame(entries)
     parquet_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(parquet_path, index=False)

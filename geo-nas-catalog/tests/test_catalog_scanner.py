@@ -24,24 +24,15 @@ def test_scanner_discovers_tabular_files(tmp_path: Path, filenames: list[str]) -
     for name in filenames:
         _create_csv(tmp_path / name)
     scanner = CatalogScanner()
-    entries = list(scanner.scan(ScanConfig(root=tmp_path, output_dir=tmp_path / "out")))
+    entries = list(scanner.scan(ScanConfig(root=tmp_path)))
     assert len(entries) == len(filenames)
     assert all(entry.format in {"csv", "txt"} for entry in entries)
 
 
 def test_scanner_discovers_netcdf(tmp_path: Path) -> None:
-    pytest.importorskip("netCDF4")
     netcdf_path = tmp_path / "test.nc"
     _create_netcdf(netcdf_path)
     scanner = CatalogScanner()
-    entries = list(
-        scanner.scan(
-            ScanConfig(
-                root=tmp_path,
-                output_dir=tmp_path / "out",
-                limit_extensions=(".nc",),
-            )
-        )
-    )
+    entries = list(scanner.scan(ScanConfig(root=tmp_path, include_suffixes=(".nc",))))
     assert entries[0].format == "netcdf"
     assert "temperature" in entries[0].variables
